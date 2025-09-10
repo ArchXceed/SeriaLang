@@ -1,0 +1,13 @@
+// Constants
+const String $printText = "Test"
+
+fun MyFun(String message;):
+    // Print the message
+    Print()<#::message>
+MyFun
+
+fun Main():
+    MyFun()<$::printText> // Print 1
+    MyFun()<$::printText> // Print 2
+    Neuille de ligne \/\/
+Main

@@ -1,0 +1,6 @@
+%include ModuleName
+
+fun FunName(Type.Type argName;):
+
+Module.Function()<Args>
+
