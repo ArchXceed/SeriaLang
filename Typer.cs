@@ -1,14 +1,25 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Diagnostics.Tracing;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 public partial class Typer
 {
     public List<Type> expressionTypes = new List<Type>
     {
-        typeof(FunctionInvocationExpression)
+        typeof(FunctionInvocationExpression),
+        typeof(FunctionReturn),
+        typeof(IfExpression),
+        typeof(ForExpression),
+        typeof(LocalVariableExpression),
+        typeof(FunctionModificationExpression)
     };
     public List<string> lines = new List<string>();
     public static List<GlobalReplaceVar> globalVars = new List<GlobalReplaceVar>();
-    public List<Function> functions = new List<Function>();
+    public static List<string> variables = new List<string>(); // All variables are GLOBAL, why? It's because MinLang will only support globals
+    public static List<Function> functions = new List<Function>();
+    public static List<ImportExpression> imports = new List<ImportExpression>();
+    public static List<CustomDefine> customDefines = new List<CustomDefine>();
+    public bool isCompilatorHeaderDefinitionFile = false; // This is a file used to define functions for the compiler, not to be compiled itself
     public static void CodeWarning(string warning, int warningCode = 0)
     {
         Console.ForegroundColor = ConsoleColor.Yellow;
@@ -49,6 +60,10 @@ public partial class Typer
         {
             Console.WriteLine("source needs to exist");
         }
+        if (source.EndsWith(".uchc"))
+        {
+            isCompilatorHeaderDefinitionFile = true;
+        }
         using StreamReader reader = new(source);
         string code = reader.ReadToEnd();
 
@@ -70,68 +85,175 @@ public partial class Typer
             currentContext.line = currentLine;
             currentContext.lineCode = line;
             string lineTrim = line.Trim();
+            bool hasFoundExpression = false;
 
-            // Skip empty lines and comments
-            if (lineTrim == "" || lineTrim.StartsWith("//"))
+            // Compilator header definition file
+            if (isCompilatorHeaderDefinitionFile)
             {
-                continue;
-            }
-            // Skip inline comments
-            lineTrim = lineTrim.Split("//")[0].Trim();
-            // Allow escaped comments
-            lineTrim = lineTrim.Replace("\\/\\/", "//");
-            if (!hasFirstFunctionBeenFound)
-            {
-                if (GlobalReplaceVar.IsGlobalReplaceVar(lineTrim))
+                if (lineTrim != "" && !lineTrim.StartsWith("//"))
                 {
-                    globalVars.Add(new GlobalReplaceVar(lineTrim));
+                    lineTrim = lineTrim.Split("//")[0].Trim();
+                    lineTrim = lineTrim.Replace("\\/\\/", "//");
+                    if (CustomDefine.IsCustomDefineStatement(lineTrim))
+                    {
+                        customDefines.Add(new CustomDefine(lineTrim));
+                        hasFoundExpression = true;
+                    }
+                }
+            }
+            // Code file
+            else
+            {
+                // Skip empty lines and comments
+                if (lineTrim == "" || lineTrim.StartsWith("//"))
+                {
                     continue;
                 }
-            }
-            Match regexMatch = FunRegex().Match(lineTrim);
-            if (regexMatch.Success)
-            {
-                // Debug
-                // foreach (Group group in regexMatch.Groups)
-                // {
-                //     Console.WriteLine(group.Value);
-                // }
-                string funName = regexMatch.Groups[1].Value;
-                string argsRaw = regexMatch.Groups[2].Value;
-                List<FunctionArg> args = FunctionArg.ParseFunctionArg(argsRaw);
-                List<string> funBody = new List<string>();
-                bool endOfFunction = false;
-                for (int functionLineIndex = currentLine + 1; functionLineIndex < lines.Count; functionLineIndex++)
+                // Skip inline comments
+                lineTrim = lineTrim.Split("//")[0].Trim();
+                // Allow escaped comments
+                lineTrim = lineTrim.Replace("\\/\\/", "//");
+
+                // ---------: Global vars
+                if (!hasFirstFunctionBeenFound)
                 {
-                    if (lines[functionLineIndex].Trim().StartsWith(funName))
+                    if (GlobalReplaceVar.IsGlobalReplaceVar(lineTrim))
                     {
-                        currentLine = functionLineIndex;
-                        endOfFunction = true;
-                        break;
-                    }
-                    string funLine = lines[functionLineIndex].Trim();
-                    if (funLine == "" || funLine.StartsWith("//"))
-                    {
+                        globalVars.Add(new GlobalReplaceVar(lineTrim));
                         continue;
                     }
-                    funLine = funLine.Split("//")[0].Trim();
-                    funLine = funLine.Replace("\\/\\/", "//");
-                    funBody.Add(funLine);
                 }
-                if (!endOfFunction)
+
+                // ---------: Imports
+                if (!hasFirstFunctionBeenFound)
                 {
-                    CodeError("Function " + funName + " not closed", 22);
+                    if (ImportExpression.IsImportStatement(lineTrim))
+                    {
+                        ImportExpression importExpression = new ImportExpression(lineTrim);
+                        List<string> importParts = [];
+                        foreach (ImportExpression import in imports)
+                        {
+                            importParts.Add(import.filePath);
+                        }
+                        if (importParts.Contains(importExpression.filePath))
+                        {
+                            CodeWarning("File already imported: " + importExpression.filePath, 42);
+                            continue;
+                        }
+                        imports.Add(importExpression);
+                        continue;
+                    }
                 }
-                currentContext.function = funName;
-                Function function = new Function(funName, args);
-                function.insideCode = funBody;
-                function.lineStart = currentLine - funBody.Count + 1;
-                function.Compile(expressionTypes);
-                functions.Add(function);
-                hasFirstFunctionBeenFound = true;
+
+                // ---------: Functions
+                Match regexMatch = FunRegex().Match(lineTrim);
+                if (regexMatch.Success)
+                {
+                    // Debug
+                    // foreach (Group group in regexMatch.Groups)
+                    // {
+                    //     Console.WriteLine(group.Value);
+                    // }
+                    string funName = regexMatch.Groups[1].Value;
+                    string argsRaw = regexMatch.Groups[2].Value;
+                    List<FunctionArg> args = FunctionArg.ParseFunctionArg(argsRaw);
+                    List<string> funBody = new List<string>();
+                    bool endOfFunction = false;
+                    for (int functionLineIndex = currentLine + 1; functionLineIndex < lines.Count; functionLineIndex++)
+                    {
+                        if (lines[functionLineIndex].Trim() == funName)
+                        {
+                            currentLine = functionLineIndex;
+                            endOfFunction = true;
+                            break;
+                        }
+                        string funLine = lines[functionLineIndex].Trim();
+                        if (funLine == "" || funLine.StartsWith("//"))
+                        {
+                            continue;
+                        }
+                        funLine = funLine.Split("//")[0].Trim();
+                        funLine = funLine.Replace("\\/\\/", "//");
+                        funBody.Add(funLine);
+                    }
+                    if (!endOfFunction)
+                    {
+                        currentContext.line = currentLine + 1;
+                        currentContext.lineCode = lines[currentLine + 1];
+                        CodeError("Function " + funName + " not closed", 22);
+                    }
+                    currentContext.function = funName;
+                    Function function = new Function(funName, args);
+                    hasFoundExpression = true;
+                    function.insideCode = funBody;
+                    function.lineStart = currentLine - funBody.Count + 1;
+                    function.Compile(expressionTypes);
+                    functions.Add(function);
+                    hasFirstFunctionBeenFound = true;
+                }
+            }
+            if (!hasFoundExpression)
+            {
+                CodeError("SyntaxError: Unknown expression", 25);
             }
         }
     }
+
+    public bool Serialize(string filePath)
+    {
+        if (!filePath.EndsWith(".ucobject"))
+        {
+            filePath += ".ucobject";
+        }
+        try
+        {
+            UCObject uCObject = new UCObject();
+            foreach (GlobalReplaceVar globalVar in globalVars)
+            {
+                if (globalVar.infos != null)
+                {
+                    uCObject.globalVars.Add(globalVar.infos);
+                }
+                else
+                {
+                    InternalError("Somethings wrong...", 1000, false);
+                }
+            }
+            foreach (CustomDefine customDefine in customDefines)
+            {
+                if (customDefine.infos != null)
+                {
+                    uCObject.customDefines.Add(customDefine.infos);
+                }
+                else
+                {
+                    InternalError("Somethings wrong...", 1000, false);
+                }
+            }
+            foreach (Function function in functions)
+            {
+                if (function.infos != null)
+                {
+                    uCObject.functions.Add(function.infos);
+                }
+                else
+                {
+                    InternalError("Somethings wrong...", 1000, false);
+                }
+            }
+            using (StreamWriter sw = new StreamWriter(filePath))
+            {
+                sw.Write(JsonSerializer.Serialize(uCObject, new JsonSerializerOptions { WriteIndented = true }));
+            }
+            return true;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Error writing to file: " + e.Message);
+            return false;
+        }
+    }
+
 
 
 

@@ -1,9 +1,27 @@
 using System.Text.RegularExpressions;
 
-public partial class FunctionArg(string name = "", string type = "")
+public partial class FunctionArg
 {
-    public string name = name;
-    public string type = type;
+    public string name = "";
+    public string type = "";
+    public FunctionArgInfos infos = new FunctionArgInfos();
+
+    public FunctionArg(string type = "", string name = "")
+    {
+        this.type = type;
+        this.name = name;
+        infos = new FunctionArgInfos
+        {
+            name = name,
+            type = type
+        };
+    }
+
+    public class FunctionArgInfos
+    {
+        public string? name { get; set; } = null;
+        public string? type { get; set; } = null;
+    }
 
     public static List<FunctionArg> ParseFunctionArg(string functionArgsRaw)
     {
@@ -13,8 +31,8 @@ public partial class FunctionArg(string name = "", string type = "")
         }
 
         List<FunctionArg> functionArgs = new List<FunctionArg>();
-        Match argMatch = ArgsRegex().Match(functionArgsRaw);
-        foreach (Group group in argMatch.Groups)
+        MatchCollection argMatch = ArgsRegex().Matches(functionArgsRaw);
+        foreach (Group group in argMatch)
         {
             Match match = ArgRegex().Match(group.Value.Trim());
             if (!match.Success)
@@ -23,7 +41,6 @@ public partial class FunctionArg(string name = "", string type = "")
             }
             string argType = match.Groups[1].Value;
             string argName = match.Groups[2].Value;
-            // Console.WriteLine($"Type:{argType}, {argName}");
             functionArgs.Add(new FunctionArg(argType, argName));
         }
         return functionArgs;
@@ -31,7 +48,7 @@ public partial class FunctionArg(string name = "", string type = "")
 
     [GeneratedRegex("^([A-Za-z0-9_]+)\\s+([A-Za-z0-9_]+)\\s*;\\s*$")]
     private static partial Regex ArgRegex();
-    [GeneratedRegex("[A-Za-z0-9_]+\\s*[A-Za-z0-9_]+;\\s*")]
+    [GeneratedRegex("[A-Za-z0-9_]+\\s+[A-Za-z0-9_]+;\\s*")]
     private static partial Regex ArgsRegex();
 
 }

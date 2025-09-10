@@ -4,6 +4,14 @@ public partial class GlobalReplaceVar
 {
     public string name = "";
     public string value = "";
+    public GlobalReplaceVarInfos? infos = null;
+
+    public class GlobalReplaceVarInfos
+    {
+        public string? type { get; set; } = null;
+        public string? name { get; set; } = null;
+        public string? value { get; set; } = null;
+    }
 
     public static bool IsGlobalReplaceVar(string line)
     {
@@ -31,6 +39,12 @@ public partial class GlobalReplaceVar
             return; // To make the compiler happy
         }
         value = valueMatch.Groups[1].Value;
+        infos = new GlobalReplaceVarInfos
+        {
+            type = match.Groups[1].Value,
+            name = name,
+            value = value
+        };
     }
 
     [GeneratedRegex("^const (.*) \\$([a-zA-Z_]+[a-zA-Z0-9_]*) = (.+)$")]

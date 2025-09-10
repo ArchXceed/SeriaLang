@@ -5,6 +5,9 @@
 # .NET Core build folders
 bin/
 obj/
+MinLang/
+test.py
+functionalities.md
 
 # Common node modules locations
 /node_modules

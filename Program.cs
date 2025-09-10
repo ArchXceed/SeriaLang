@@ -6,5 +6,6 @@ public class Program
         argsGlobal = args;
         Typer typer = new Typer();
         typer.TyperMain(argsGlobal);
+        typer.Serialize(argsGlobal[1]);
     }
 }

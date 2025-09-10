@@ -39,6 +39,7 @@ public partial class ExpressionTemplate
     public partial class ExpressionTemplateInfos
     {
         public string message = "Undifined message";
+        public string? expressionType { get; set; } = null;
     }
 }
 

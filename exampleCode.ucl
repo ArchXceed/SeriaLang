@@ -1,13 +1,25 @@
-// Constants
-const String $printText = "Test"
+%import globals.ucl
+// %import MinLang/libmc/cmd.uchc
+
+fun PrintMsg():
+    // Print a custom message
+    Print()<"Hello!">
+    // Summon()<"sheep", "~", "~", "~">
+    #::myLocalVar::Set()<0>
+PrintMsg
 
 fun MyFun(String message;):
     // Print the message
+    #::myLocalVar::Add()<1>
+    If (#::message == "Hello"): PrintMsg()<>
+    For (0; 10; 1): MyFun()<"Test11">
     Print()<#::message>
+    Return true
 MyFun
 
 fun Main():
-    MyFun()<$::printText> // Print 1
+    Int myLocalVar = 1
+    MyFun()<"Hello"> // Print 1
     MyFun()<$::printText> // Print 2
-    Neuille de ligne \/\/
+    // Neuille de ligne \/\/
 Main

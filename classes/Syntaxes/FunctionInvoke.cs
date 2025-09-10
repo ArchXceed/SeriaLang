@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 public partial class FunctionInvocationExpression : ExpressionTemplate
@@ -26,7 +25,7 @@ public partial class FunctionInvocationExpression : ExpressionTemplate
                 foreach (Group group in argsMatch.Groups)
                 {
                     infos.argumentsVariables.Add(group.Value.Trim().TrimEnd(';').Trim());
-                    infos.argumentsValues.Add(new Value(group.Value.Trim().TrimEnd(';').Trim()));
+                    infos.argumentsValues.Add(new Value(group.Value.Trim().TrimEnd(';').Trim()).infos);
                 }
             }
         }
@@ -35,12 +34,13 @@ public partial class FunctionInvocationExpression : ExpressionTemplate
     {
         return ExpressionRegex().IsMatch(line);
     }
+
     public class FunctionInvocationExpressionInfos : ExpressionTemplateInfos
     {
-        public string functionName = "Undefined function name";
+        public string functionName { get; set; } = "Undefined function name";
         public string argumentsRaw = "Undefined arguments raw";
-        public List<string> argumentsVariables = new List<string>();
-        public List<Value> argumentsValues = new List<Value>();
+        public List<string> argumentsVariables = [];
+        public List<Value.ValueInfos> argumentsValues { get; set; } = [];
     }
 
     [GeneratedRegex("^([a-zA-Z_]+[a-zA-Z0-9_]*)\\(\\)<(.*)>$")]
